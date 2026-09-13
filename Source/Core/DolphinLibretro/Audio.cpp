@@ -6,12 +6,17 @@
 #include "AudioCommon/AudioCommon.h"
 #include "VideoCommon/Present.h"
 #include "DolphinLibretro/Common/Globals.h"
+#include "DolphinLibretro/ControllerAudioInterface.h"
 
 namespace Libretro
 {
 namespace Audio
 {
 retro_audio_sample_batch_t batch_cb = nullptr;
+
+// The frontend's controller audio interface, or null when it offers none and
+// the Wii Remote speakers stay in the main mix.
+static const retro_controller_audio_interface* g_controller_audio = nullptr;
 
 static std::atomic<bool> g_buf_support{false};
 static std::atomic<unsigned> g_buf_occupancy{0};
@@ -81,9 +86,35 @@ void Reset()
   g_audio_state_cb = false;
 }
 
+// Ask the frontend whether it plays controller audio. If it does, the four Wii
+// Remote speaker channels come out of Mixer::Mix and Stream::MixBlock offers them
+// to it separately. Set before BootCore builds the mixer, which reads the routing
+// in its constructor.
+static void ProbeControllerAudio()
+{
+  static retro_controller_audio_interface stored{};
+  retro_controller_audio_interface probe{};
+  g_controller_audio = nullptr;
+  if ((Libretro::environ_cb(RETRO_ENVIRONMENT_GET_CONTROLLER_AUDIO_INTERFACE, &probe) ||
+       Libretro::environ_cb(RETRO_ENVIRONMENT_GET_CONTROLLER_AUDIO_INTERFACE_FINAL, &probe)) &&
+      probe.interface_version >= 1 && probe.push)
+  {
+    stored = probe;
+    g_controller_audio = &stored;
+  }
+
+  const bool routed = g_controller_audio != nullptr;
+  Config::SetBase(Config::MAIN_WIIMOTE_AUDIO_ROUTING_ENABLED, routed);
+  for (const auto& output_enabled : Config::MAIN_WIIMOTE_AUDIO_OUTPUT_ENABLED)
+    Config::SetBase(output_enabled, routed);
+  INFO_LOG_FMT(AUDIO, "Wii Remote speakers: {}",
+               routed ? "handed to the frontend" : "mixed into the main stream");
+}
+
 void Init()
 {
   Reset();
+  ProbeControllerAudio();
 
   // don't use any callback, let dolphin push audio samples
   if (g_use_call_back_audio == CallBackMode::PUSH_SAMPLES)
@@ -150,6 +181,28 @@ bool Stream::IsValid()
   return false;
 }
 
+void Stream::MixBlock(unsigned int num_samples)
+{
+  m_mixer->Mix(m_buffer, num_samples);
+
+  // Every channel is offered every block, silence included, so the frontend can
+  // keep each one level with the main stream it is about to receive.
+  if (g_controller_audio)
+  {
+    for (unsigned port = 0; port < Config::WIIMOTE_SPEAKER_COUNT; ++port)
+    {
+      m_mixer->MixWiimoteSpeaker(port, m_speaker_buffer, num_samples);
+      if (g_controller_audio->push(g_controller_audio->frontend_data, port, 0, m_speaker_buffer,
+                                   num_samples))
+        continue;
+      for (unsigned i = 0; i < num_samples * 2; ++i)
+        m_buffer[i] = static_cast<s16>(std::clamp(m_buffer[i] + m_speaker_buffer[i], -32768, 32767));
+    }
+  }
+
+  batch_cb(m_buffer, num_samples);
+}
+
 void Stream::Update(unsigned int num_samples)
 {
   if (g_use_call_back_audio != CallBackMode::PUSH_SAMPLES) {
@@ -169,21 +222,18 @@ void Stream::Update(unsigned int num_samples)
   pending = 0; // consume all
 
   // First push the minimum threshold block
-  m_mixer->Mix(m_buffer, MIN_SAMPLES);
-  batch_cb(m_buffer, MIN_SAMPLES);
+  MixBlock(MIN_SAMPLES);
   avail -= MIN_SAMPLES;
 
   // Then push any remaining in MAX_SAMPLES chunks
   while (avail > MAX_SAMPLES)
   {
-    m_mixer->Mix(m_buffer, MAX_SAMPLES);
-    batch_cb(m_buffer, MAX_SAMPLES);
+    MixBlock(MAX_SAMPLES);
     avail -= MAX_SAMPLES;
   }
   if (avail)
   {
-    m_mixer->Mix(m_buffer, avail);
-    batch_cb(m_buffer, avail);
+    MixBlock(avail);
   }
 }
 
@@ -201,15 +251,13 @@ void Stream::MixAndPush(unsigned int num_samples)
   // Then push any remaining in MAX_SAMPLES chunk
   while (avail >= MAX_SAMPLES)
   {
-    m_mixer->Mix(m_buffer, MAX_SAMPLES);
-    batch_cb(m_buffer, MAX_SAMPLES);
+    MixBlock(MAX_SAMPLES);
     avail -= MAX_SAMPLES;
   }
   
   if (avail >= MIN_SAMPLES)
   {
-    m_mixer->Mix(m_buffer, avail);
-    batch_cb(m_buffer, avail);
+    MixBlock(avail);
   }
   else if (avail > 0)
   {
@@ -283,8 +331,7 @@ void Stream::ProcessCallBack()
 
     // Use frame time to decide how much to push
     unsigned to_mix = GetSamplesForFrame(m_sample_rate);
-    m_mixer->Mix(m_buffer, to_mix);
-    batch_cb(m_buffer, to_mix);
+    MixBlock(to_mix);
 
     return;
   }
@@ -292,8 +339,7 @@ void Stream::ProcessCallBack()
   unsigned to_mix = GetSamplesForFrame(m_sample_rate);
   // Clamp to sane range
   to_mix = std::clamp(to_mix, MIN_SAMPLES, MAX_SAMPLES);
-  m_mixer->Mix(m_buffer, to_mix);
-  batch_cb(m_buffer, to_mix);
+  MixBlock(to_mix);
 }
 } // namespace Audio
 

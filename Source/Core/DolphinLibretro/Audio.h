@@ -41,7 +41,13 @@ public:
   void ProcessCallBack() override;
 
 private:
+  // Mix one block and send it. With a frontend that plays controller audio, each
+  // Wii Remote's speaker is offered to it first and only mixed into the main
+  // stream when it is declined.
+  void MixBlock(unsigned int num_samples);
+
   s16 m_buffer[MAX_SAMPLES * 2];
+  s16 m_speaker_buffer[MAX_SAMPLES * 2];
   std::atomic<bool> m_callback_received{false};
   unsigned m_sample_rate{DEFAULT_SAMPLE_RATE};
 };

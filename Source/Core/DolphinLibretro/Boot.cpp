@@ -403,6 +403,10 @@ bool retro_load_game(const struct retro_game_info* game)
 
   Config::SetBase(Config::MAIN_AUDIO_BACKEND, BACKEND_LIBRETRO);
 
+  // Main.Wiimote. The emulated speaker discards everything a game sends it until
+  // this is set. Audio::Init decides where its sound goes.
+  Config::SetBase(Config::MAIN_WIIMOTE_ENABLE_SPEAKER, true);
+
   // Main.BluetoothPassthrough
   Config::SetBase(Config::MAIN_BLUETOOTH_PASSTHROUGH_ENABLED,
     Libretro::GetOption<bool>(Libretro::Options::main_bluetooth::BLUETOOTH_PASSTHROUGH, /*def=*/false));
