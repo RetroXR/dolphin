@@ -206,8 +206,9 @@ jobs:
           this tag, which is how the GPLv2+ obligation is met.
 
           Over the stock buildbot build this adds the options retroXR needs:
-          Wiimote IR passthrough, per-slot GameCube memory cards, deterministic
-          mode, and the frontend link interface.
+          Wiimote IR passthrough, the Wii Remote speaker (handed to the frontend
+          per remote through the controller audio interface), per-slot GameCube
+          memory cards, deterministic mode, and the frontend link interface.
           EOF
           # Create if absent, then upload with --clobber, so re-running the
           # workflow for a tag replaces the assets instead of failing.
