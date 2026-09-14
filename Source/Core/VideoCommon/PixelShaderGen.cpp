@@ -1565,10 +1565,24 @@ static void WriteTevRegular(ShaderCode& out, std::string_view components, TevBia
   // apply it.
   out.Write("(((tevin_d.{}{}){})", components, tev_bias_table[bias], tev_scale_table_left[scale]);
   out.Write(" {} ", tev_op_table[op]);
-  out.Write("(((((tevin_a.{0}<<8) + "
-            "(tevin_b.{0}-tevin_a.{0})*(tevin_c.{0}+(tevin_c.{0}>>7))){1}){2})>>8)",
-            components, tev_scale_table_left[scale],
-            (scale != TevScale::Divide2) ? tev_lerp_bias[op] : "");
+  // Written so a driver that evaluates the lerp in 16 bits still gets it right, as Adreno does.
+  // Unscaled, the sum is 0..65408, which truncation keeps, and the mask undoes the sign extension
+  // of the shift; scaled, the sum does not fit and is split into two parts that do.
+  const char* lerp_bias = (scale != TevScale::Divide2) ? tev_lerp_bias[op] : "";
+  if (scale == TevScale::Scale2 || scale == TevScale::Scale4)
+  {
+    const int s = scale == TevScale::Scale2 ? 1 : 2;
+    out.Write("(((((tevin_a.{0}<<8) + (tevin_b.{0}-tevin_a.{0})*(tevin_c.{0}+(tevin_c.{0}>>7)))"
+              ">>{1}) & {2}) + ((((((tevin_a.{0}<<8) + (tevin_b.{0}-tevin_a.{0})*"
+              "(tevin_c.{0}+(tevin_c.{0}>>7))) & {3})<<{4}){5})>>8))",
+              components, 8 - s, (1 << (8 + s)) - 1, (1 << (8 - s)) - 1, s, lerp_bias);
+  }
+  else
+  {
+    out.Write("(((((tevin_a.{0}<<8) + (tevin_b.{0}-tevin_a.{0})*(tevin_c.{0}+(tevin_c.{0}>>7)))"
+              "{1})>>8) & 255)",
+              components, lerp_bias);
+  }
   out.Write("){}", tev_scale_table_right[scale]);
 }
 
