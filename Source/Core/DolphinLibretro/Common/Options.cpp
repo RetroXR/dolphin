@@ -272,6 +272,22 @@ static struct retro_core_option_v2_definition option_defs[] = {
     "enabled"
   },
   {
+    Libretro::Options::core::GC_BIOS_REGION,
+    "Core > GameCube BIOS Region (No Disc)",
+    "GameCube BIOS Region (No Disc)",
+    "Which GameCube BIOS boots when the core starts with no disc. Auto boots the first one installed of NTSC-U, PAL and NTSC-J. Restart core to take effect.",
+    nullptr,
+    CATEGORY_CORE,
+    {
+      { "auto",   nullptr },
+      { "ntsc-u", nullptr },
+      { "pal",    nullptr },
+      { "ntsc-j", nullptr },
+      { nullptr, nullptr }
+    },
+    "auto"
+  },
+  {
     Libretro::Options::core::DISC_BASED_GAMES_BOOT_TO_WII_MENU,
     "Core > Disc Based Games Boot to Wii Menu",
     "Disc Based Games Boot to Wii System Menu",
