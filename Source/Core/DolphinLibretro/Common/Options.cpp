@@ -622,14 +622,15 @@ static struct retro_core_option_v2_definition option_defs[] = {
     "System Configuration (GC) > Memory Card Slot A",
     "Memory Card Slot A",
     "What is in GameCube memory card slot A. \"GCI Folder\" is Dolphin's own "
-    "folder of .gci files; \"Empty\" is no card at all. A frontend may also set "
-    "this to the absolute path of a raw memory card image, which is then used "
-    "exactly as given.",
+    "folder of .gci files; \"Empty\" is no card at all; \"Microphone\" is the "
+    "GameCube microphone. A frontend may also set this to the absolute path of a "
+    "raw memory card image, which is then used exactly as given.",
     nullptr,
     CATEGORY_GC,
     {
         { "gci",  "GCI Folder" },
         { "none", "Empty" },
+        { "mic",  "Microphone" },
         { nullptr, nullptr }
     },
     "gci" // default: the GCI folder, which is what slot A has always been
@@ -639,15 +640,16 @@ static struct retro_core_option_v2_definition option_defs[] = {
     "System Configuration (GC) > Memory Card Slot B",
     "Memory Card Slot B",
     "What is in GameCube memory card slot B. \"GCI Folder\" is Dolphin's own "
-    "folder of .gci files; \"Empty\" is no card at all. A frontend may also set "
-    "this to the absolute path of a raw memory card image, which is then used "
-    "exactly as given. A card here takes the slot from the GameCube "
-    "microphone, which shares it.",
+    "folder of .gci files; \"Empty\" is no card at all; \"Microphone\" is the "
+    "GameCube microphone. A frontend may also set this to the absolute path of a "
+    "raw memory card image, which is then used exactly as given. A card here "
+    "takes the slot from the GameCube Microphone option, which shares it.",
     nullptr,
     CATEGORY_GC,
     {
         { "none", "Empty" },
         { "gci",  "GCI Folder" },
+        { "mic",  "Microphone" },
         { nullptr, nullptr }
     },
     "none" // default: empty, which is what slot B has always been

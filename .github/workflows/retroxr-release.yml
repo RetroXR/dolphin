@@ -212,6 +212,13 @@ jobs:
           also writes each TEV stage's integer blend so that Qualcomm's Adreno
           driver, which evaluates it in 16 bits, still draws it exactly (New Super
           Mario Bros. Wii's title hills were magenta on a Quest).
+
+          v11: the GameCube Microphone is seated like a memory card, and live. Either memory card path
+          option now takes mic, which becomes the Microphone EXI device, so a frontend can plug one in
+          or pull it mid-game exactly as it swaps a card. The microphone is polled every frame in
+          whichever slot holds it; before this, a microphone enabled from the saved options was never
+          polled at all. Its button is read whenever a slot holds a microphone, and the activate
+          microphone hotkey now accepts L1 and R1, which it offered but ignored.
           EOF
           # Create if absent, then upload with --clobber, so re-running the
           # workflow for a tag replaces the assets instead of failing.

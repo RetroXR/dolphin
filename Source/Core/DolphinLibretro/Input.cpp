@@ -913,6 +913,8 @@ static int GetRetroButtonId(const std::string& name)
   if (name == "Y") return RETRO_DEVICE_ID_JOYPAD_Y;
   if (name == "L") return RETRO_DEVICE_ID_JOYPAD_L2;
   if (name == "R") return RETRO_DEVICE_ID_JOYPAD_R2;
+  if (name == "L1") return RETRO_DEVICE_ID_JOYPAD_L;
+  if (name == "R1") return RETRO_DEVICE_ID_JOYPAD_R;
   if (name == "L2") return RETRO_DEVICE_ID_JOYPAD_L;
   if (name == "R2") return RETRO_DEVICE_ID_JOYPAD_R;
   if (name == "L3") return RETRO_DEVICE_ID_JOYPAD_L3;
@@ -942,9 +944,13 @@ void Update()
   }
 
   auto& system = Core::System::GetInstance();
-  bool gcMicEnable = Libretro::Options::GetCached<bool>(Libretro::Options::sysconf_gc::ENABLE_GAMECUBE_MIC);
+  bool gcMicSeated;
+  {
+    std::lock_guard lk(Libretro::Input::g_gc_microphones_lock);
+    gcMicSeated = !Libretro::Input::g_gc_microphones.empty();
+  }
 
-  if (!system.IsWii() && Libretro::Input::g_has_microphone_support && gcMicEnable)
+  if (!system.IsWii() && Libretro::Input::g_has_microphone_support && gcMicSeated)
   {
     std::string micHotkey = Libretro::Options::GetCached<std::string>(
       Libretro::Options::sysconf_gc::HOTKEY_ACTIVATE_MICROPHONE);
@@ -1890,16 +1896,12 @@ void poll_microphone()
 {
   static bool s_wii_speak_enabled = false;
   static bool s_logi_microphone_enabled = false;
-  static bool s_gc_mic_enabled = false;
 
   if (Libretro::Options::IsUpdated(Libretro::Options::sysconf::WII_SPEAK_ENABLE))
     s_wii_speak_enabled = Libretro::Options::GetCached<bool>(Libretro::Options::sysconf::WII_SPEAK_ENABLE);
 
   if (Libretro::Options::IsUpdated(Libretro::Options::sysconf::WII_LOGI_MICROPHONE_ENABLE))
     s_logi_microphone_enabled = Libretro::Options::GetCached<bool>(Libretro::Options::sysconf::WII_LOGI_MICROPHONE_ENABLE);
-
-  if (Libretro::Options::IsUpdated(Libretro::Options::sysconf_gc::ENABLE_GAMECUBE_MIC))
-    s_gc_mic_enabled = Libretro::Options::GetCached<bool>(Libretro::Options::sysconf_gc::ENABLE_GAMECUBE_MIC);
 
   Core::System& system = Core::System::GetInstance();
 
@@ -1908,15 +1910,12 @@ void poll_microphone()
     for (auto* mic : Libretro::Input::g_active_microphones)
       mic->PollRetroArchMic();
   }
-  else if(s_gc_mic_enabled)
+  else if (!system.IsWii())
   {
-    // Poll GC mic
-    auto* exi_device = system.GetExpansionInterface().GetDevice(ExpansionInterface::Slot::B);
-    if (exi_device && Config::Get(Config::GetInfoForEXIDevice(ExpansionInterface::Slot::B))
-      == ExpansionInterface::EXIDeviceType::Microphone)
-    {
-      auto* gc_mic = static_cast<ExpansionInterface::CEXIMic*>(exi_device);
+    // The configured slot device can name a microphone before ChangeDevice has
+    // built it, so poll the ones that actually exist.
+    std::lock_guard lk(Libretro::Input::g_gc_microphones_lock);
+    for (auto* gc_mic : Libretro::Input::g_gc_microphones)
       gc_mic->PollLibretroMic();
-    }
   }
 }

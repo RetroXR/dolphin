@@ -258,10 +258,23 @@ CEXIMic::CEXIMic(Core::System& system, int index)
 #endif
 
   StreamInit();
+
+#ifdef __LIBRETRO__
+  std::lock_guard lk(Libretro::Input::g_gc_microphones_lock);
+  Libretro::Input::g_gc_microphones.push_back(this);
+#endif
 }
 
 CEXIMic::~CEXIMic()
 {
+#ifdef __LIBRETRO__
+  // Before the stream closes: poll_microphone reads through this list on the
+  // libretro thread while ChangeDevice destroys the device on the CPU thread.
+  {
+    std::lock_guard lk(Libretro::Input::g_gc_microphones_lock);
+    std::erase(Libretro::Input::g_gc_microphones, this);
+  }
+#endif
   StreamTerminate();
 
 #ifdef _WIN32

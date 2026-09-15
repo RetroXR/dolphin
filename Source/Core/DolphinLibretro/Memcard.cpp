@@ -110,6 +110,8 @@ Seat Resolve(Slot slot, const Seat& other)
     return {EXIDeviceType::None, {}};
   if (raw == "gci")
     return {EXIDeviceType::MemoryCardFolder, {}};
+  if (raw == "mic")
+    return {EXIDeviceType::Microphone, {}};
 
   const std::string path = Libretro::VFile::NormalizePath(raw);
   if (!IsAbsolute(path))
@@ -146,13 +148,28 @@ void Install(Slot slot, const Seat& seat)
   Config::SetCurrent(Config::GetInfoForEXIDevice(slot), seat.device);
   s_applied[slot] = seat;
 }
+
+// A warning under BOOT: the libretro listener leaves EXPANSIONINTERFACE disabled,
+// and frontends commonly pass nothing below a warning, so this is the level at
+// which a frontend can see which slot holds a microphone.
+void NoteMicrophone(Slot slot, const Seat& was, const Seat& now)
+{
+  const bool mic_now = now.device == EXIDeviceType::Microphone;
+  const bool mic_was = was.device == EXIDeviceType::Microphone;
+  if (mic_now != mic_was)
+    WARN_LOG_FMT(BOOT, "Memory Card {}: microphone {}", SlotName(slot),
+                 mic_now ? "seated" : "pulled");
+}
 }  // namespace
 
 void ApplyCold()
 {
   Seat a = Resolve(Slot::A, {});
+  NoteMicrophone(Slot::A, s_applied[Slot::A], a);
   Install(Slot::A, a);
-  Install(Slot::B, Resolve(Slot::B, a));
+  Seat b = Resolve(Slot::B, a);
+  NoteMicrophone(Slot::B, s_applied[Slot::B], b);
+  Install(Slot::B, b);
 }
 
 void CheckForUpdates()
@@ -182,6 +199,7 @@ void CheckForUpdates()
                                                  CoreTiming::FromThread::CPU);
     }, true);  // wait_for_completion = true
 
+    NoteMicrophone(slot, s_applied[slot], want);
     s_applied[slot] = want;
     INFO_LOG_FMT(EXPANSIONINTERFACE, "Memory Card {}: now {}", SlotName(slot),
                  want.path.empty() ? "empty" : want.path);
