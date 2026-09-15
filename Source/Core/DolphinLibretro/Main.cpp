@@ -87,6 +87,9 @@ extern "C" {
 void retro_set_environment(retro_environment_t cb)
 {
   Libretro::environ_cb = cb;
+  // Started with no content, retro_load_game boots the GameCube IPL.
+  bool no_game = true;
+  cb(RETRO_ENVIRONMENT_SET_SUPPORT_NO_GAME, &no_game);
 #ifdef PERF_TEST
   environ_cb(RETRO_ENVIRONMENT_GET_PERF_INTERFACE, &perf_cb);
 #endif

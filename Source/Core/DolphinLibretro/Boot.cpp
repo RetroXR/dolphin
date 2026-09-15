@@ -169,6 +169,35 @@ void generate_cht_from_ini(std::string fileName)
   INFO_LOG_FMT(BOOT, "Cheats: cht file created successfully at: {}", cheatFile);
 }
 
+// No content is a GameCube switched on with an empty drive, which boots to its
+// IPL menu. The region is a core option; "auto" boots the first one installed.
+static std::unique_ptr<BootParameters> EmptyDriveBootParameters()
+{
+  const std::string choice =
+      GetOption<std::string>(Options::core::GC_BIOS_REGION, "auto");
+  std::vector<DiscIO::Region> regions;
+  if (choice == "ntsc-u")
+    regions = {DiscIO::Region::NTSC_U};
+  else if (choice == "pal")
+    regions = {DiscIO::Region::PAL};
+  else if (choice == "ntsc-j")
+    regions = {DiscIO::Region::NTSC_J};
+  else
+    regions = {DiscIO::Region::NTSC_U, DiscIO::Region::PAL, DiscIO::Region::NTSC_J};
+
+  for (const DiscIO::Region region : regions)
+  {
+    BootParameters::IPL ipl{region};
+    if (File::Exists(ipl.path))
+    {
+      NOTICE_LOG_FMT(BOOT, "No content: booting the GameCube IPL at {}", ipl.path);
+      return std::make_unique<BootParameters>(std::move(ipl));
+    }
+  }
+  ERROR_LOG_FMT(BOOT, "No content, and no GameCube IPL is installed for region '{}'", choice);
+  return nullptr;
+}
+
 } // namespace Libretro
 
 bool retro_load_game(const struct retro_game_info* game)
@@ -180,6 +209,7 @@ bool retro_load_game(const struct retro_game_info* game)
   std::string rebuild_save_dir;
   std::string user_dir;
   std::string sys_dir;
+  const bool no_content = !game || !game->path || !*game->path;
 
   /*
    *  If the GBPlayer is active, we try to reconstruct the GC save dir location
@@ -270,6 +300,20 @@ bool retro_load_game(const struct retro_game_info* game)
   UICommon::CreateDirectories();
   UICommon::Init();
   Libretro::Log::Init();
+
+  // Resolved before anything else starts: the frontend does not call
+  // retro_unload_game after a refused load, so nothing may be left running.
+  std::unique_ptr<BootParameters> empty_drive_boot;
+  if (no_content)
+  {
+    empty_drive_boot = Libretro::EmptyDriveBootParameters();
+    if (!empty_drive_boot)
+    {
+      Libretro::Log::Shutdown();
+      UICommon::Shutdown();
+      return false;
+    }
+  }
 
   if (Libretro::GBPlayer_active)
   {
@@ -646,11 +690,14 @@ bool retro_load_game(const struct retro_game_info* game)
   NOTICE_LOG_FMT(VIDEO, "Using GFX backend: {}", Config::Get(Config::MAIN_GFX_BACKEND));
 
   std::vector<std::string> normalized_game_paths;
-  normalized_game_paths.push_back(Libretro::VFile::NormalizePath(game->path));
   std::string folder_path_str;
   std::string filename_str;
   std::string extension;
-  SplitPath(normalized_game_paths.front(), &folder_path_str, &filename_str, &extension);
+  if (!no_content)
+  {
+    normalized_game_paths.push_back(Libretro::VFile::NormalizePath(game->path));
+    SplitPath(normalized_game_paths.front(), &folder_path_str, &filename_str, &extension);
+  }
   fs::path folder_path(folder_path_str);
   fs::path filename(filename_str);
   std::transform(extension.begin(), extension.end(), extension.begin(),
@@ -697,7 +744,9 @@ bool retro_load_game(const struct retro_game_info* game)
   }
 
   const bool disc_based_games_boot_to_wii_menu = Libretro::GetOption<bool>(Libretro::Options::core::DISC_BASED_GAMES_BOOT_TO_WII_MENU, false);
-  std::unique_ptr<BootParameters> boot_params = BootParameters::GenerateFromFile(normalized_game_paths);
+  std::unique_ptr<BootParameters> boot_params =
+      no_content ? std::move(empty_drive_boot) :
+                   BootParameters::GenerateFromFile(normalized_game_paths);
 
   if (disc_based_games_boot_to_wii_menu)
   {
@@ -725,7 +774,7 @@ bool retro_load_game(const struct retro_game_info* game)
 
   if (!BootManager::BootCore(Core::System::GetInstance(), std::move(boot_params), wsi))
   {
-    ERROR_LOG_FMT(BOOT, "Could not boot {}", game->path);
+    ERROR_LOG_FMT(BOOT, "Could not boot {}", no_content ? "the GameCube IPL" : game->path);
     return false;
   }
 
@@ -733,7 +782,7 @@ bool retro_load_game(const struct retro_game_info* game)
 
   const bool importCheats = Libretro::GetOption<bool>(retroarch_core::CHEATS_IMPORT, true);
 
-  if (importCheats)
+  if (importCheats && !no_content)
   {
     Libretro::reload_cheats_from_ini();
     Libretro::generate_cht_from_ini(filename_str);
