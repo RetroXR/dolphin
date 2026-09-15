@@ -219,6 +219,10 @@ jobs:
           whichever slot holds it; before this, a microphone enabled from the saved options was never
           polled at all. Its button is read whenever a slot holds a microphone, and the activate
           microphone hotkey now accepts L1 and R1, which it offered but ignored.
+
+          v11 also starts with no content at all, booting the GameCube IPL so the console's own
+          menu comes up with nothing in the drive. dolphin_gc_bios_region picks which one; auto
+          takes the first installed, USA then EUR then JAP.
           EOF
           # Create if absent, then upload with --clobber, so re-running the
           # workflow for a tag replaces the assets instead of failing.
