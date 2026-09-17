@@ -4,6 +4,7 @@
 #include "Core/HW/EXI/EXI_DeviceMic.h"
 
 #include <algorithm>
+#include <array>
 #include <cstring>
 #include <mutex>
 
@@ -20,6 +21,7 @@
 #include "Core/HW/EXI/EXI.h"
 #include "Core/HW/GCPad.h"
 #include "Core/HW/SystemTimers.h"
+#include "Core/HW/VideoInterface.h"
 #include "Core/System.h"
 
 #ifdef _WIN32
@@ -112,6 +114,7 @@ void CEXIMic::StreamStart()
 
   stream_size = buff_size_samples * 500;
   stream_buffer = new s16[stream_size];
+  m_retro_mic_carry = 0.0;
 
   retro_microphone_params_t params{};
   params.rate = sample_rate;
@@ -401,10 +404,25 @@ void CEXIMic::PollLibretroMic()
   if (!m_retro_mic || !status.is_active)
     return;
 
-  s16 buf[64];  // max buff_size_samples (ring_base << 2 = 128 bytes / 2 = 64 samples)
+  // The game takes sample_rate samples a second, one buff_size_samples buffer per
+  // interrupt, so one frame has to bring in a frame's worth: about 184 at
+  // 11025 Hz. Reading one buffer (16 to 64 samples) starved the ring, and
+  // StreamReadOne then handed the game its previous buffer again several times a
+  // frame -- a buzz of 2 to 6 ms fragments no game can hear a word in. Dolphin's
+  // Wii microphone reads a frame's worth the same way.
+  const double refresh = m_system.GetVideoInterface().GetTargetRefreshRate();
+  const double wanted = sample_rate / (refresh > 0.0 ? refresh : 60.0) + m_retro_mic_carry;
+  int count = static_cast<int>(wanted);
+  m_retro_mic_carry = wanted - count;
+
+  // Sized for the fastest rate the status word selects, at a PAL 50 frames a second.
+  std::array<s16, (rate_base << 2) / 50 + 1> buf;
+  count = std::clamp(count, 0, static_cast<int>(buf.size()));
+  if (count == 0)
+    return;
 
   const int frames = Libretro::Input::g_microphone_interface.read_mic(
-      static_cast<retro_microphone_t*>(m_retro_mic), buf, buff_size_samples);
+      static_cast<retro_microphone_t*>(m_retro_mic), buf.data(), count);
 
   if (frames <= 0)
     return;

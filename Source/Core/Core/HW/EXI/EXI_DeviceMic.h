@@ -116,6 +116,9 @@ private:
 #endif
 #ifdef __LIBRETRO__
   void* m_retro_mic = nullptr;
+  // The part of a sample one frame's read could not take, carried to the next so
+  // a rate that is not a whole number of samples per frame does not drift.
+  double m_retro_mic_carry = 0.0;
 #endif
 };
 }  // namespace ExpansionInterface
