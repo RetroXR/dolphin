@@ -9,6 +9,7 @@ add_library(dolphin_libretro SHARED
   Main.cpp
   Memcard.cpp
   Video.cpp
+  WiiUpdate.cpp
 )
 
 if(ENABLE_VULKAN)

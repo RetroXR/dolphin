@@ -8,6 +8,7 @@
 #include "Common/CommonPaths.h"
 #include "Core/CommonTitles.h"
 #include "Common/FileUtil.h"
+#include "Common/NandPaths.h"
 #include "Common/StringUtil.h"
 #include "Common/Version.h"
 #include "Core/Boot/Boot.h"
@@ -171,10 +172,25 @@ void generate_cht_from_ini(std::string fileName)
   INFO_LOG_FMT(BOOT, "Cheats: cht file created successfully at: {}", cheatFile);
 }
 
-// No content is a GameCube switched on with an empty drive, which boots to its
-// IPL menu. The region is a core option; "auto" boots the first one installed.
+// No content is a console switched on with an empty drive. A GameCube boots to
+// its IPL menu (the region is a core option; "auto" boots the first one
+// installed); a Wii boots the System Menu installed in the NAND.
 static std::unique_ptr<BootParameters> EmptyDriveBootParameters()
 {
+  if (GetOption<std::string>(Options::core::CONSOLE, "auto") == "wii")
+  {
+    const std::string tmd =
+        Common::GetTMDFileName(Titles::SYSTEM_MENU, Common::FromWhichRoot::Configured);
+    if (!File::Exists(tmd))
+    {
+      // No fallback to the GameCube IPL: a Wii with no menu is not a GameCube.
+      ERROR_LOG_FMT(BOOT, "No content, and no Wii System Menu is installed at {}", tmd);
+      return nullptr;
+    }
+    NOTICE_LOG_FMT(BOOT, "No content: booting the Wii System Menu at {}", tmd);
+    return std::make_unique<BootParameters>(BootParameters::NANDTitle{Titles::SYSTEM_MENU});
+  }
+
   const std::string choice =
       GetOption<std::string>(Options::core::GC_BIOS_REGION, "auto");
   std::vector<DiscIO::Region> regions;
@@ -736,7 +752,11 @@ bool retro_load_game(const struct retro_game_info* game)
       Libretro::GetOption<bool>(sysconf::WII_LOGI_MICROPHONE_ENABLE, /*def=*/false));
   }
 
-  const bool disc_based_games_boot_to_wii_menu = Libretro::GetOption<bool>(Libretro::Options::core::DISC_BASED_GAMES_BOOT_TO_WII_MENU, false);
+  // A GameCube has no menu to boot a disc through, whatever the option says: the
+  // .opt is shared with the Wii, where it was switched on.
+  const bool disc_based_games_boot_to_wii_menu =
+      Libretro::GetOption<bool>(Libretro::Options::core::DISC_BASED_GAMES_BOOT_TO_WII_MENU, false) &&
+      Libretro::GetOption<std::string>(Libretro::Options::core::CONSOLE, "auto") != "gamecube";
   std::unique_ptr<BootParameters> boot_params =
       no_content ? std::move(empty_drive_boot) :
                    BootParameters::GenerateFromFile(normalized_game_paths);

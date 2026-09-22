@@ -142,6 +142,7 @@ namespace core {
   constexpr const char CHEATS_ENABLED[] = "dolphin_cheats_enabled";
   constexpr const char SKIP_GC_BIOS[] = "dolphin_skip_gc_bios";
   constexpr const char GC_BIOS_REGION[] = "dolphin_gc_bios_region";
+  constexpr const char CONSOLE[] = "dolphin_console";
   constexpr const char DETERMINISM[] = "dolphin_determinism";
   constexpr const char DISC_BASED_GAMES_BOOT_TO_WII_MENU[] = "dolphin_disc_based_games_boot_to_wii_menu";
   constexpr const char LANGUAGE[] = "dolphin_language";

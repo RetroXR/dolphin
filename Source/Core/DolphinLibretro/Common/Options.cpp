@@ -288,6 +288,21 @@ static struct retro_core_option_v2_definition option_defs[] = {
     "auto"
   },
   {
+    Libretro::Options::core::CONSOLE,
+    "Core > Console",
+    "Console",
+    "Which console this is when the disc cannot say. With no disc, a GameCube boots its BIOS and a Wii the System Menu installed in the save location's NAND. 'Disc Based Games Boot to Wii Menu' applies only to a Wii: a GameCube never has a menu. Auto keeps the old behaviour: the GameCube BIOS with no disc, and the Wii Menu option applying to any disc. Restart core to take effect.",
+    nullptr,
+    CATEGORY_CORE,
+    {
+      { "auto",     "Auto" },
+      { "gamecube", "GameCube" },
+      { "wii",      "Wii" },
+      { nullptr, nullptr }
+    },
+    "auto"
+  },
+  {
     Libretro::Options::core::DISC_BASED_GAMES_BOOT_TO_WII_MENU,
     "Core > Disc Based Games Boot to Wii Menu",
     "Disc Based Games Boot to Wii System Menu",
