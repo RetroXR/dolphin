@@ -1,5 +1,5 @@
-# Build the retroXR Dolphin core for Windows and Android and publish it as a
-# release, so retroXR's CoreDownloadManager can fetch it.
+# Build the retroXR Dolphin core for Windows, Android, Linux and macOS and
+# publish it as a release, so retroXR's CoreDownloadManager can fetch it.
 #
 # The existing build-*-libretro.yml workflows compile on every push and keep
 # nothing. That makes them fine as checks and useless as a source of binaries,
@@ -14,6 +14,9 @@
 #
 #   Windows  dolphin_libretro.dll.zip          containing dolphin_libretro.dll
 #   Android  dolphin_libretro_android.so.zip   containing dolphin_libretro_android.so
+#   Linux    dolphin_libretro.so.zip           containing dolphin_libretro.so
+#   macOS    dolphin_libretro_arm64.dylib.zip
+#            dolphin_libretro_x86_64.dylib.zip each containing dolphin_libretro.dylib
 #
 # One core file at the root of the zip, which is what the previous hand-built
 # assets contained and what the installer unpacks.
@@ -177,9 +180,195 @@ jobs:
           path: dolphin_libretro_android.so.zip
           if-no-files-found: error
 
+  # The oldest Ubuntu runner: a shared library loads only against a glibc at
+  # least as new as the one it was linked with. Dolphin wants GCC 12 and its
+  # libstdc++, which 22.04 has as a package but not as its default compiler.
+  linux:
+    name: Linux x86_64
+    runs-on: ubuntu-22.04
+    steps:
+      # Only what the core cannot take from Externals/: X11, udev (the hardware
+      # database is a hard requirement once enabled) and the GL/EGL headers. No
+      # cmake from apt -- 22.04's is 3.22 and Dolphin needs 3.25; the runner
+      # image's own newer one is already first on PATH.
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-12 g++-12 ninja-build pkg-config zip \
+            libx11-dev libxi-dev libxrandr-dev libudev-dev \
+            libegl1-mesa-dev libgl1-mesa-dev
+
+      - uses: actions/checkout@v6
+        with:
+          path: ${{ env.core_id }}
+          submodules: recursive
+          ref: ${{ github.event.inputs.ref || github.ref }}
+
+      # USE_SYSTEM_LIBS=OFF, unlike build-ubuntu-libretro.yml, which links the
+      # runner's mbedtls, curl and zlib. That is fine for a build check and wrong
+      # for a download: libmbedcrypto.so.7 is an Ubuntu 22.04 soname, and a core
+      # that names it will not load on a distro that ships another. Bundled, the
+      # only libraries left are ones every desktop Linux has.
+      - name: Configure
+        run: |
+          cd ${{ env.core_id }}
+          cmake -B build/linux-x86_64 \
+            -DLIBRETRO=ON \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DUSE_SYSTEM_LIBS=OFF \
+            -DCMAKE_C_COMPILER=gcc-12 \
+            -DCMAKE_CXX_COMPILER=g++-12 \
+            -G Ninja
+
+      - name: Build
+        run: ninja -C ${{ env.core_id }}/build/linux-x86_64 -j$(nproc)
+
+      - name: Package
+        run: |
+          mapfile -t hits < <(find "${{ env.core_id }}/build/linux-x86_64" \
+            -name 'dolphin_libretro.so' -type f)
+          if [ "${#hits[@]}" -ne 1 ]; then
+            echo "expected exactly one dolphin_libretro.so, found ${#hits[@]}:"
+            printf '  %s\n' "${hits[@]}"
+            exit 1
+          fi
+          mkdir -p stage
+          lib=stage/dolphin_libretro.so
+          cp "${hits[0]}" "$lib"
+
+          # --strip-unneeded for the same reason as Android: the frontend finds
+          # the core by dlsym, so the dynamic symbol table has to survive.
+          before=$(stat -c%s "$lib")
+          strip --strip-unneeded "$lib"
+          echo "stripped: $before -> $(stat -c%s "$lib") bytes"
+          # Listed once into a variable: `nm | grep -q` under pipefail fails
+          # whenever grep's early exit kills nm with SIGPIPE mid-table.
+          exports=$(nm --dynamic --defined-only "$lib")
+          for sym in retro_api_version retro_init retro_load_game retro_run; do
+            if ! grep -q " $sym\$" <<<"$exports"; then
+              echo "FATAL: $sym is not exported after stripping"
+              exit 1
+            fi
+          done
+
+          # Every library the core names must be one a desktop has anyway. A
+          # new entry here is a dependency that crept in from the runner.
+          readelf -d "$lib" | grep NEEDED
+          unexpected=$(readelf -d "$lib" | sed -n 's/.*NEEDED.*\[\(.*\)\]/\1/p' \
+            | grep -Ev '^(libc|libm|libdl|libpthread|librt|libstdc\+\+|libgcc_s|ld-linux-x86-64|libX11|libXi|libXrandr|libXext|libudev|libEGL|libGL|libGLX|libOpenGL)\.so' || true)
+          if [ -n "$unexpected" ]; then
+            echo "FATAL: unexpected shared library dependencies:"
+            echo "$unexpected"
+            exit 1
+          fi
+
+          # And the glibc and libstdc++ floors are still 22.04's (2.35, and
+          # GCC 12's 3.4.30). The runner carries a newer libstdc++ than the
+          # distro does, and a symbol bound to it would not load on 22.04 itself.
+          glibc=$(objdump -T "$lib" | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1)
+          glibcxx=$(objdump -T "$lib" | grep -o 'GLIBCXX_[0-9.]*' | sort -uV | tail -1)
+          echo "newest symbol versions: $glibc $glibcxx"
+          if [ "$(printf '%s\n' "$glibc" GLIBC_2.35 | sort -V | tail -1)" != GLIBC_2.35 ] ||
+             [ "$(printf '%s\n' "$glibcxx" GLIBCXX_3.4.30 | sort -V | tail -1)" != GLIBCXX_3.4.30 ]; then
+            echo "FATAL: the core needs a newer glibc or libstdc++ than Ubuntu 22.04's"
+            exit 1
+          fi
+
+          (cd stage && zip -q -X ../dolphin_libretro.so.zip dolphin_libretro.so)
+          file "$lib"
+          ls -lh dolphin_libretro.so.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: dolphin_libretro.so.zip
+          if-no-files-found: error
+
+  # Both architectures on one Apple Silicon runner, with the arguments libretro's
+  # own .gitlab-ci.yml passes for its osx-x64 job, which also runs on Apple
+  # Silicon: CMAKE_SYSTEM_NAME and _PROCESSOR make it a cross build, so Dolphin's
+  # architecture detection (and every external's) sees x86_64 rather than the
+  # host. LIBRETRO on APPLE already forces every library to the bundled copy, so
+  # nothing is taken from Homebrew.
+  macos:
+    name: macOS ${{ matrix.arch }}
+    runs-on: macos-14
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            cross: ''
+          - arch: x86_64
+            cross: '-DCMAKE_SYSTEM_NAME=Darwin -DCMAKE_SYSTEM_PROCESSOR=x86_64'
+    steps:
+      - name: Install dependencies
+        run: brew install ninja
+
+      - uses: actions/checkout@v6
+        with:
+          path: ${{ env.core_id }}
+          submodules: recursive
+          ref: ${{ github.event.inputs.ref || github.ref }}
+
+      - name: Configure
+        run: |
+          cd ${{ env.core_id }}
+          cmake -B build/macos-${{ matrix.arch }} \
+            -DLIBRETRO=ON \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_ARCHITECTURES=${{ matrix.arch }} \
+            ${{ matrix.cross }} \
+            -G Ninja
+
+      - name: Build
+        run: ninja -C ${{ env.core_id }}/build/macos-${{ matrix.arch }} -j$(sysctl -n hw.ncpu)
+
+      - name: Package
+        run: |
+          hits=()
+          while IFS= read -r f; do hits+=("$f"); done < <(find \
+            "${{ env.core_id }}/build/macos-${{ matrix.arch }}" \
+            -name 'dolphin_libretro.dylib' -type f)
+          if [ "${#hits[@]}" -ne 1 ]; then
+            echo "expected exactly one dolphin_libretro.dylib, found ${#hits[@]}:"
+            printf '  %s\n' "${hits[@]}"
+            exit 1
+          fi
+          mkdir -p stage
+          lib=stage/dolphin_libretro.dylib
+          cp "${hits[0]}" "$lib"
+          lipo -info "$lib"
+          if [ "$(lipo -archs "$lib")" != "${{ matrix.arch }}" ]; then
+            echo "$lib is not ${{ matrix.arch }}"
+            exit 1
+          fi
+          # Nothing from Homebrew: a core that names /opt/homebrew or /usr/local
+          # loads on the runner and on nobody else's Mac.
+          otool -L "$lib"
+          if otool -L "$lib" | tail -n +2 | grep -Eq '/opt/homebrew|/usr/local|@rpath'; then
+            echo "$lib links a library outside the system"
+            exit 1
+          fi
+          exports=$(nm -gU "$lib")
+          for sym in retro_api_version retro_init retro_load_game retro_run; do
+            if ! grep -q " _$sym\$" <<<"$exports"; then
+              echo "FATAL: $sym is not exported"
+              exit 1
+            fi
+          done
+          (cd stage && zip -q -X ../dolphin_libretro_${{ matrix.arch }}.dylib.zip dolphin_libretro.dylib)
+          ls -lh dolphin_libretro_${{ matrix.arch }}.dylib.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-${{ matrix.arch }}
+          path: dolphin_libretro_${{ matrix.arch }}.dylib.zip
+          if-no-files-found: error
+
   publish:
     name: Publish release
-    needs: [windows, android]
+    needs: [windows, android, linux, macos]
     # Only when there is a tag to publish as. A workflow_dispatch with a blank
     # tag is a build check and stops here rather than cutting a release nobody
     # asked for.
@@ -202,8 +391,9 @@ jobs:
           cat > notes.md <<EOF
           Dolphin libretro core built for retroXR, from \`$GITHUB_SHA\`.
 
-          Windows x86_64 and Android arm64-v8a. The source for these binaries is
-          this tag, which is how the GPLv2+ obligation is met.
+          Windows x86_64, Android arm64-v8a, Linux x86_64 and macOS arm64 and
+          x86_64. The source for these binaries is this tag, which is how the
+          GPLv2+ obligation is met.
 
           Over the stock buildbot build this adds the options retroXR needs:
           Wiimote IR passthrough, the Wii Remote speaker (handed to the frontend
@@ -223,6 +413,12 @@ jobs:
           v11 also starts with no content at all, booting the GameCube IPL so the console's own
           menu comes up with nothing in the drive. dolphin_gc_bios_region picks which one; auto
           takes the first installed, USA then EUR then JAP.
+
+          v13 boots the Wii System Menu. dolphin_console (auto, gamecube or wii) says which console an
+          empty drive is: wii boots the System Menu installed in the NAND, and is refused rather than
+          falling back to the GameCube IPL when there is none; auto keeps the old behaviour. The core
+          also exports retroxr_wii_system_update, Dolphin's online system update from NUS, so a
+          frontend can install the System Menu without the Wii common key ever leaving Dolphin.
           EOF
           # Create if absent, then upload with --clobber, so re-running the
           # workflow for a tag replaces the assets instead of failing.
@@ -235,4 +431,7 @@ jobs:
           gh release upload "$TAG" \
             dist/dolphin_libretro.dll.zip \
             dist/dolphin_libretro_android.so.zip \
+            dist/dolphin_libretro.so.zip \
+            dist/dolphin_libretro_arm64.dylib.zip \
+            dist/dolphin_libretro_x86_64.dylib.zip \
             --repo "$GITHUB_REPOSITORY" --clobber
