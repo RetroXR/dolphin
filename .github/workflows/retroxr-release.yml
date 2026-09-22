@@ -357,7 +357,10 @@ jobs:
           # Nothing from Homebrew: a core that names /opt/homebrew or /usr/local
           # loads on the runner and on nobody else's Mac.
           otool -L "$lib"
-          if otool -L "$lib" | tail -n +2 | grep -Eq '/opt/homebrew|/usr/local|@rpath'; then
+          # tail skips the header; the grep -v skips the dylib's own install
+          # name, which otool lists first and which is @rpath/<itself>.
+          if otool -L "$lib" | tail -n +2 | grep -v 'dolphin_libretro\.dylib' \
+              | grep -Eq '/opt/homebrew|/usr/local|@rpath'; then
             echo "$lib links a library outside the system"
             exit 1
           fi
