@@ -302,6 +302,17 @@ jobs:
           - arch: x86_64
             cross: '-DCMAKE_SYSTEM_NAME=Darwin -DCMAKE_SYSTEM_PROCESSOR=x86_64'
     steps:
+      # The newest Xcode on the image rather than its default, 15.4. Dolphin
+      # builds a struct from parentheses (make_unique<Listener>(callback) in
+      # HookableEvent.h), which is C++20 aggregate init that Apple clang only
+      # accepts from Xcode 16; 15.4 stops at "no matching constructor".
+      - name: Select Xcode
+        run: |
+          xcode=$(ls -d /Applications/Xcode_16*.app | sort -V | tail -1)
+          test -n "$xcode"
+          sudo xcode-select -s "$xcode"
+          clang++ --version
+
       - name: Install dependencies
         run: brew install ninja
 
