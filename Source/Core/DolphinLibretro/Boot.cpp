@@ -29,6 +29,7 @@
 #include "Core/System.h"
 #include "DolphinLibretro/Audio.h"
 #include "DolphinLibretro/Input.h"
+#include "DolphinLibretro/Link.h"
 #include "DolphinLibretro/Log.h"
 #include "DolphinLibretro/Memcard.h"
 #include "DolphinLibretro/Common/VFile.h"
@@ -847,6 +848,10 @@ bool retro_load_game_special(unsigned game_type, const struct retro_game_info* i
 void retro_unload_game(void)
 {
   auto& system = Core::System::GetInstance();
+
+  // Off the Ethernet cable before anything waits on the CPU thread: one parked on
+  // a console the frontend has stopped too would hold up the stop below for ever.
+  Libretro::DetachEthernetLinks();
 
   if (Core::IsRunning(system))
   {

@@ -14,6 +14,7 @@
 #include "Core/ConfigManager.h"
 #include "Core/CoreTiming.h"
 #include "Core/HW/EXI/EXI_Channel.h"
+#include "Core/HW/EXI/EXI_DeviceEthernet.h"
 #include "Core/HW/EXI/EXI_DeviceMemoryCard.h"
 #include "Core/HW/GCMemcard/GCMemcard.h"
 #include "Core/HW/MMIO.h"
@@ -118,6 +119,7 @@ void ExpansionInterfaceManager::Init(const Sram* override_sram)
 
   auto& core_timing = m_system.GetCoreTiming();
   CEXIMemoryCard::Init(core_timing);
+  CEXIETHERNET::Init(core_timing);
 
   {
     u16 size_mbits = Memcard::MBIT_SIZE_MEMORY_CARD_2043;

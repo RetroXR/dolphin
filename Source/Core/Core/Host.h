@@ -73,6 +73,43 @@ public:
 
 std::unique_ptr<GBALinkTransport> Host_CreateGBALinkTransport(int device_number);
 
+// The broadband adapter's Ethernet port, cabled to other consoles the frontend
+// is also running, on a bus the frontend hosts. The far end is a hub: every
+// frame goes to every other console on it, and each adapter keeps what is
+// addressed to it.
+//
+// What crosses is one Ethernet frame per message, exactly as it is on the wire.
+// What the bus adds is a clock: every frame is stamped with the moment it lands,
+// in this console's ticks, and a console may only run as far as every other one
+// has promised not to send anything before. So two consoles hear each other at
+// the same emulated moments however the host's threads happen to run.
+//
+// Returns nullptr in frontends that have no such bus, which is all of them
+// except libretro.
+class EthernetLinkTransport
+{
+public:
+  virtual ~EthernetLinkTransport() = default;
+
+  // Consoles on the cable, this one included. Below two there is nobody at the
+  // far end, and a frame sent goes nowhere.
+  virtual unsigned Peers() = 0;
+
+  // Say that this console stands at `now` and will send nothing that lands
+  // before `safe`, then wait until it may run to `request`. All in this
+  // console's ticks. Returns true when the cable has changed since the last
+  // call: somebody was plugged in or pulled out.
+  virtual bool Advance(u64 now, u64 safe, u64 request) = 0;
+
+  virtual void Send(const u8* frame, size_t len, u64 tick) = 0;
+
+  // The next frame off the cable and the tick it lands at, oldest first.
+  // `len` is the buffer's size on the way in and the frame's on the way out.
+  virtual bool Receive(u8* frame, size_t* len, u64* tick) = 0;
+};
+
+std::unique_ptr<EthernetLinkTransport> Host_CreateEthernetLinkTransport(u64 ticks_per_second);
+
 enum class HostMessageID
 {
   // Begin at 10 in case there is already messages with wParam = 0, 1, 2 and so on

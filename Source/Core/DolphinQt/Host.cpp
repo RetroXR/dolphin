@@ -333,3 +333,9 @@ std::unique_ptr<GBAHostInterface> Host_CreateGBAHost(std::weak_ptr<HW::GBA::Core
   return nullptr;
 }
 #endif
+
+std::unique_ptr<EthernetLinkTransport> Host_CreateEthernetLinkTransport(u64)
+{
+  // No frontend-hosted bus here; the broadband adapter's other backends stand.
+  return nullptr;
+}

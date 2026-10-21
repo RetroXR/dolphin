@@ -26,6 +26,7 @@
 #include "Core/HW/SystemTimers.h"
 
 #include "DolphinLibretro/Common/Globals.h"
+#include "DolphinLibretro/Link.h"
 #include "DolphinLibretro/LinkInterface.h"
 #include "DolphinLibretro/Log.h"
 
@@ -51,7 +52,7 @@ constexpr u64 HORIZON_DIVISOR = 1000000;
 const retro_link_interface* g_link = nullptr;
 bool g_link_probed = false;
 
-const retro_link_interface* GetLinkInterface()
+const retro_link_interface* ProbeLinkInterface()
 {
   if (g_link_probed)
     return g_link;
@@ -183,6 +184,13 @@ private:
   u64 m_position = 0;
 };
 }  // namespace
+
+// The same bus for every cable this core can be on: the GBA leads here, and the
+// broadband adapter's Ethernet (EthernetLink.cpp).
+const retro_link_interface* GetLinkInterface()
+{
+  return ProbeLinkInterface();
+}
 }  // namespace Libretro
 
 std::unique_ptr<GBALinkTransport> Host_CreateGBALinkTransport(int device_number)

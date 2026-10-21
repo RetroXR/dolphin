@@ -36,7 +36,10 @@ CEXIETHERNET::CEXIETHERNET(Core::System& system, BBADeviceType type) : IEXIDevic
 
   Common::ToLower(&mac_addr_setting);
 
-  if (!mac_addr)
+  // A console on the link cable has an address of its own and leaves the shared
+  // setting alone: every instance a frontend runs reads the same config, and two
+  // adapters on one hub with one MAC would each throw the other's frames away.
+  if (!mac_addr && type != BBADeviceType::Link)
   {
     mac_addr = Common::GenerateMacAddress(Common::MACConsumer::BBA);
     mac_addr_setting = Common::MacAddressToString(mac_addr.value());
@@ -65,6 +68,15 @@ CEXIETHERNET::CEXIETHERNET(Core::System& system, BBADeviceType type) : IEXIDevic
     m_network_interface = std::make_unique<IPCBBAInterface>(this);
     INFO_LOG_FMT(SP1, "Created IPC-based network interface.");
     break;
+  case BBADeviceType::Link:
+  {
+    auto link = std::make_unique<LinkNetworkInterface>(this);
+    mac_addr = link->MAC();
+    m_link_interface = link.get();
+    m_network_interface = std::move(link);
+    INFO_LOG_FMT(SP1, "Created link cable network interface.");
+    break;
+  }
   case BBADeviceType::XLINK:
     // TODO start BBA with network link down, bring it up after "connected" response from XLink
 
@@ -644,7 +656,9 @@ bool CEXIETHERNET::RecvHandlePacket()
     mBbaMem[BBA_IR] |= INT_R;
 
     exi_status.interrupt |= exi_status.TRANSFER;
-    m_system.GetExpansionInterface().ScheduleUpdateInterrupts(CoreTiming::FromThread::NON_CPU, 0);
+    // ANY: a read thread delivers here for most backends, and the CPU thread for
+    // the link cable's.
+    m_system.GetExpansionInterface().ScheduleUpdateInterrupts(CoreTiming::FromThread::ANY, 0);
   }
   else
   {

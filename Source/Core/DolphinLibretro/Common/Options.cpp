@@ -673,7 +673,11 @@ static struct retro_core_option_v2_definition option_defs[] = {
     Libretro::Options::sysconf_gc::SP1_DEVICE,
     "System Configuration (GC) > SP1 Device",
     "SP1 Device",
-    "Select the device connected to the GameCube SP1 slot.",
+    "Select the device connected to the GameCube SP1 slot. \"Ethernet Link Cable\" "
+    "is a Broadband Adapter cabled to other consoles running in the same frontend, "
+    "for LAN play such as Mario Kart: Double Dash!!'s: the frontend decides which "
+    "consoles share a hub and must support the link interface, and DHCP is answered "
+    "inside each console with an address of its own.",
     nullptr,
     CATEGORY_GC,
     {
@@ -686,6 +690,7 @@ static struct retro_core_option_v2_definition option_defs[] = {
 #ifdef HAVE_CPPIPC
         { "14",  "Ethernet IPC" },      // EXIDeviceType::EthernetIPC
 #endif
+        { "15",  "Ethernet Link Cable" }, // EXIDeviceType::EthernetLink
         { "13",  "Modem TapServer" },   // EXIDeviceType::ModemTapServer
         { "6",   "Baseboard" },         // EXIDeviceType::Baseboard
         { nullptr, nullptr }

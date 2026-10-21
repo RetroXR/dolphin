@@ -19,11 +19,16 @@ public:
   ~LogListener() override;
   void Log(Common::Log::LogLevel level, const char* text) override;
 
-private:
   retro_log_printf_t m_log;
 };
 
 static std::unique_ptr<LogListener> logListener;
+
+void Warn(const std::string& line)
+{
+  if (logListener && logListener->m_log)
+    logListener->m_log(RETRO_LOG_WARN, "%s\n", line.c_str());
+}
 
 void Init()
 {
