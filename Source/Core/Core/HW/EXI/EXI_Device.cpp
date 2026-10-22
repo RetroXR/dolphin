@@ -165,6 +165,10 @@ std::unique_ptr<IEXIDevice> EXIDevice_Create(Core::System& system, const EXIDevi
     result = std::make_unique<CEXIETHERNET>(system, BBADeviceType::IPC);
     break;
 
+  case EXIDeviceType::EthernetLink:
+    result = std::make_unique<CEXIETHERNET>(system, BBADeviceType::Link);
+    break;
+
   case EXIDeviceType::ModemTapServer:
     result = std::make_unique<CEXIModem>(system, ModemDeviceType::TAPSERVER);
     break;

@@ -76,6 +76,10 @@ std::unique_ptr<GBALinkTransport> Host_CreateGBALinkTransport(int)
 {
   return nullptr;
 }
+std::unique_ptr<EthernetLinkTransport> Host_CreateEthernetLinkTransport(u64)
+{
+  return nullptr;
+}
 std::unique_ptr<GBAHostInterface> Host_CreateGBAHost(std::weak_ptr<HW::GBA::Core> core)
 {
   return nullptr;

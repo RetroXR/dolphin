@@ -4,6 +4,7 @@
 #pragma once
 
 #include <atomic>
+#include <deque>
 #include <map>
 #include <mutex>
 #include <thread>
@@ -24,8 +25,14 @@
 #include "Core/HW/EXI/BBA/BuiltIn.h"
 #include "Core/HW/EXI/BBA/TAPServerConnection.h"
 #include "Core/HW/EXI/EXI_Device.h"
+#include "Core/Host.h"
 
 class PointerWrap;
+
+namespace CoreTiming
+{
+class CoreTimingManager;
+}
 
 namespace ExpansionInterface
 {
@@ -213,6 +220,7 @@ enum class BBADeviceType
   TAPSERVER,
   BuiltIn,
   IPC,
+  Link,
 };
 
 class CEXIETHERNET : public IEXIDevice
@@ -220,6 +228,10 @@ class CEXIETHERNET : public IEXIDevice
 public:
   CEXIETHERNET(Core::System& system, BBADeviceType type);
   ~CEXIETHERNET() override;
+
+  // Registers the event the link cable is paced by. Always, whatever is in the
+  // slot, because an event a savestate names must exist when it is loaded.
+  static void Init(CoreTiming::CoreTimingManager& core_timing);
   void SetCS(int cs) override;
   bool IsPresent() const override;
   bool IsInterruptSet() override;
@@ -514,7 +526,73 @@ private:
 #endif
   };
 
+  // The adapter's socket on the frontend's link bus (Host.h). Frames come off
+  // the cable on the CPU thread, at the tick they are stamped for, rather than
+  // from a read thread whenever the host has them.
+  class LinkNetworkInterface : public NetworkInterface
+  {
+  public:
+    explicit LinkNetworkInterface(CEXIETHERNET* eth_ref);
+    ~LinkNetworkInterface() override;
+
+    bool Activate() override;
+    void Deactivate() override;
+    bool IsActivated() override;
+    bool SendFrame(const u8* frame, u32 size) override;
+    bool RecvInit() override;
+    void RecvStart() override;
+    void RecvStop() override;
+
+    // The paced event: meet the other consoles when it is time to, then hand
+    // the adapter every frame that has landed.
+    void Tick();
+
+    const Common::MACAddress& MAC() const { return m_mac; }
+
+  private:
+    struct Frame
+    {
+      u64 tick;
+      std::vector<u8> data;
+    };
+
+    u64 Now();
+    void Rendezvous(u64 now);
+    void Drain();
+    void Deliver();
+    void Schedule();
+    bool AnswerDHCP(const u8* frame, u32 size);
+
+    std::unique_ptr<EthernetLinkTransport> m_transport;
+    Common::MACAddress m_mac{};
+    bool m_recv_enabled = false;
+
+    // The cable's clock: CoreTiming's, accumulated so that a savestate moving
+    // it backwards, or a long way forwards, is not taken as time passing.
+    u64 m_now = 0;
+    u64 m_last_raw = 0;
+    bool m_have_raw = false;
+
+    u64 m_ahead = 0;
+    u64 m_grain = 0;
+    u64 m_grain_alone = 0;
+    u64 m_gap = 0;
+
+    u64 m_safe = 0;
+    u64 m_next_rv = 0;
+    u64 m_last_stamp = 0;
+    unsigned m_peers = 0;
+
+    std::deque<Frame> m_rx;
+    u64 m_sent = 0;
+    u64 m_received = 0;
+  };
+
+  static void LinkTickCallback(Core::System& system, u64 userdata, s64 cycles_late);
+
   std::unique_ptr<NetworkInterface> m_network_interface;
+  // The same interface when it is the link cable's, for the paced event.
+  LinkNetworkInterface* m_link_interface = nullptr;
 
   std::unique_ptr<u8[]> mRecvBuffer;
   u32 mRecvBufferLength = 0;

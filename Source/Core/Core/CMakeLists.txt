@@ -193,6 +193,7 @@ add_library(core
   HW/EXI/BBA/XLINK_KAI_BBA.cpp
   HW/EXI/BBA/BuiltIn.cpp
   HW/EXI/BBA/BuiltIn.h
+  HW/EXI/BBA/LinkBBA.cpp
   HW/EXI/Modem/TAPServerModem.cpp
   HW/EXI/EXI_Channel.cpp
   HW/EXI/EXI_Channel.h

@@ -38,6 +38,7 @@
 #include "Core/System.h"
 #include "DolphinLibretro/Audio.h"
 #include "DolphinLibretro/Input.h"
+#include "DolphinLibretro/Link.h"
 #include "DolphinLibretro/Common/Options.h"
 #include "DolphinLibretro/Video.h"
 #include "DolphinLibretro/VR.h"
@@ -140,6 +141,7 @@ void retro_deinit(void)
   Libretro::g_emuthread_launched = false;
   // Backstop for retro_unload_game: no thread of ours may outlive the library.
   SerialInterface::GBAConnectionWaiter_Shutdown();
+  Libretro::DetachEthernetLinks();
 #ifdef PERF_TEST
   perf_cb.perf_log();
 #endif
