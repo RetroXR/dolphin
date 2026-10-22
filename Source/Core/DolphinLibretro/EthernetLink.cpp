@@ -29,7 +29,7 @@ namespace
 // Named the same in every core that speaks it -- the PS2's network adapter too,
 // so a GameCube and a PS2 can share a hub and hear each other's broadcasts as
 // they would on a real one.
-constexpr const char ETHERNET_PROTOCOL[] = "ethernet-1";
+constexpr const char ETHERNET_PROTOCOL[] = "ethernet";
 
 // The link port the adapter attaches on. Ports 0-3 are the controller sockets,
 // where a Game Boy Advance cable goes.
