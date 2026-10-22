@@ -321,6 +321,12 @@ bool Host_UpdateDiscordPresenceRaw(const std::string& details, const std::string
 #endif
 }
 
+std::unique_ptr<GBALinkTransport> Host_CreateGBALinkTransport(int)
+{
+  // No frontend-hosted bus here; the socket path stands.
+  return nullptr;
+}
+
 #ifndef HAS_LIBMGBA
 std::unique_ptr<GBAHostInterface> Host_CreateGBAHost(std::weak_ptr<HW::GBA::Core> core)
 {

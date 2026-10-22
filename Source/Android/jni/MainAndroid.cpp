@@ -196,6 +196,12 @@ void Host_TitleChanged()
   env->CallStaticVoidMethod(IDCache::GetNativeLibraryClass(), IDCache::GetOnTitleChanged());
 }
 
+std::unique_ptr<GBALinkTransport> Host_CreateGBALinkTransport(int)
+{
+  // No frontend-hosted bus here; the socket path stands.
+  return nullptr;
+}
+
 std::unique_ptr<GBAHostInterface> Host_CreateGBAHost(std::weak_ptr<HW::GBA::Core> core)
 {
   return nullptr;
