@@ -292,7 +292,7 @@ jobs:
   # nothing is taken from Homebrew.
   macos:
     name: macOS ${{ matrix.arch }}
-    runs-on: macos-14
+    runs-on: macos-15
     strategy:
       fail-fast: false
       matrix:
