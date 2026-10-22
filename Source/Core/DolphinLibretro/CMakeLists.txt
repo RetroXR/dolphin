@@ -4,6 +4,7 @@ add_library(dolphin_libretro SHARED
   Boot.cpp
   Host.cpp
   Input.cpp
+  Link.cpp
   Log.cpp
   Main.cpp
   Video.cpp
