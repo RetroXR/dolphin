@@ -38,7 +38,7 @@ namespace
 // GameCube lead to a Game Boy link lead. They are different cables and different
 // conversations, and a bus that let one stand in for the other would produce a
 // machine that answers in a language nobody asked a question in.
-constexpr const char JOYLINK_PROTOCOL[] = "gba-joy-1";
+constexpr const char JOYLINK_PROTOCOL[] = "gba-joy";
 
 // How far ahead a GameCube promises not to originate anything.
 //
