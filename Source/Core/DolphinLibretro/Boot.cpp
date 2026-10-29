@@ -334,6 +334,14 @@ bool retro_load_game(const struct retro_game_info* game)
     }
   }
 
+  // The player sits on the High-Speed Port, which comes up empty unless told otherwise.
+  // Sys/GameSettings/UGP.ini attaches it for the Start-Up Disc, but only when a Sys folder is
+  // installed and lists the disc's ID; without one the disc reports the player not connected.
+  // Cleared again for any other load: the setting is saved to Dolphin.ini at shutdown, and would
+  // otherwise stay under the next game.
+  Config::SetBase(Config::MAIN_HSP_DEVICE, Libretro::GBPlayer_active ? HSP::HSPDeviceType::GBPlayer :
+                                                                       HSP::HSPDeviceType::None);
+
   if (Libretro::GBPlayer_active)
   {
     Config::SetBase(Config::MAIN_GBA_ROM_PATHS[Config::GBPLAYER_GBA_INDEX], Libretro::GBPlayer_rom_path);
