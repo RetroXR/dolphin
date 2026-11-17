@@ -302,14 +302,14 @@ jobs:
           - arch: x86_64
             cross: '-DCMAKE_SYSTEM_NAME=Darwin -DCMAKE_SYSTEM_PROCESSOR=x86_64'
     steps:
-      # The newest Xcode on the image rather than its default, 15.4. Dolphin
-      # builds a struct from parentheses (make_unique<Listener>(callback) in
-      # HookableEvent.h), which is C++20 aggregate init that Apple clang only
-      # accepts from Xcode 16; 15.4 stops at "no matching constructor".
+      # The newest Xcode on the image rather than its default. Upstream's
+      # CMakeLists refuses anything older than AppleClang 21, which is Xcode 26.
       - name: Select Xcode
         run: |
-          xcode=$(ls -d /Applications/Xcode_16*.app | sort -V | tail -1)
+          xcode=$(ls -d /Applications/Xcode_*.app | grep -v -i beta | sort -V | tail -1)
           test -n "$xcode"
+          echo "using $xcode"
+          case "$(basename "$xcode")" in Xcode_2[6-9]*|Xcode_[3-9][0-9]*) ;; *) echo "need Xcode 26 or later"; exit 1;; esac
           sudo xcode-select -s "$xcode"
           clang++ --version
 
