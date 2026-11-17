@@ -207,6 +207,7 @@ bool BootCore(Core::System& system, std::unique_ptr<BootParameters> boot,
         break;
       case DiscIO::Region::DEV:
         ipl_path = DEV_DIR DIR_SEP GC_IPL;
+        break;
       default:
         break;
     }
