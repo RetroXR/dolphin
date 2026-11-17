@@ -46,6 +46,13 @@
 #include "VideoCommon/Resources/CustomResourceManager.h"
 #include "VideoCommon/Fifo.h"
 #include "VideoCommon/OnScreenDisplay.h"
+#include "Core/Config/UISettings.h"
+
+// X11's None macro reaches this file through the video headers on Linux and
+// would turn HSP::HSPDeviceType::None into a number.
+#ifdef None
+#undef None
+#endif
 
 namespace fs = std::filesystem;
 
@@ -357,7 +364,8 @@ bool retro_load_game(const struct retro_game_info* game)
     Config::SetBase(Config::MAIN_GBA_ROM_PATHS[Config::GBPLAYER_GBA_INDEX], std::string{});
   }
 
-  Discord::SetDiscordPresenceEnabled(false);
+  Config::SetBase(Config::MAIN_USE_DISCORD_PRESENCE, false);
+  Discord::SetDiscordPresence();
   Common::SetEnableAlert(false);
   Common::SetAbortOnPanicAlert(false);
   Common::RegisterMsgAlertHandler([](const char* caption, const char* text,
