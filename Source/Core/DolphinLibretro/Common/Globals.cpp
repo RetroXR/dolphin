@@ -12,7 +12,7 @@ namespace Input
 retro_microphone_interface g_microphone_interface{};
 bool g_has_microphone_support = false;
 bool g_gc_mic_button[4];
-std::vector<IOS::HLE::USB::Microphone*> g_active_microphones{};
+std::vector<AudioCommon::Microphone*> g_active_microphones{};
 std::mutex g_gc_microphones_lock;
 std::vector<ExpansionInterface::CEXIMic*> g_gc_microphones{};
 } // namespace Input

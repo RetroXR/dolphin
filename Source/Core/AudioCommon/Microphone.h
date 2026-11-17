@@ -23,7 +23,7 @@ struct cubeb_stream;
 #include <libretro.h>
 #endif
 
-namespace IOS::HLE::USB
+namespace AudioCommon
 {
 class MicrophoneState
 {
@@ -57,7 +57,9 @@ public:
 #endif
 
 protected:
+  // sic. can be 16, 32 or 64 on GameCube
   static constexpr u32 BUFF_SIZE_SAMPLES = 32;
+  u32 m_samples_avail = 0;
 
 private:
 #ifdef HAVE_CUBEB
@@ -70,6 +72,7 @@ private:
 #if defined(HAVE_CUBEB) || defined(__LIBRETRO__)
   virtual s16 GetVolumeModifier() const = 0;
   virtual bool AreSamplesByteSwapped() const = 0;
+  virtual void OnOverflow();
 #endif
 
   long DataCallback(const SampleType* input_buffer, long nframes);
@@ -81,11 +84,11 @@ private:
   void StreamStart(u32 sampling_rate);
   void StreamStop();
 
+  virtual u32 GetBufferSizeSamples() const;
   virtual u32 GetStreamSize() const = 0;
   std::vector<SampleType> m_stream_buffer{};
   u32 m_stream_wpos = 0;
   u32 m_stream_rpos = 0;
-  u32 m_samples_avail = 0;
 
   // TODO: Find how this level is calculated on real hardware
   std::atomic<u16> m_loudness_level = 0;
@@ -138,6 +141,9 @@ private:
 #ifdef __LIBRETRO__
   void* m_retro_mic = nullptr;
   u32 m_current_sampling_rate = 0;
+  // The part of a sample one frame's read could not take, carried to the next so
+  // a rate that is not a whole number of samples per frame does not drift.
+  double m_retro_mic_carry = 0.0;
 #endif
 };
-}  // namespace IOS::HLE::USB
+}  // namespace AudioCommon

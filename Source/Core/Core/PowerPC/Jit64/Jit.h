@@ -50,7 +50,7 @@ public:
   Jit64& operator=(Jit64&&) = delete;
   ~Jit64() override;
 
-  void Init() override;
+  [[nodiscard]] bool Init() override;
   void Shutdown() override;
 
   bool HandleFault(uintptr_t access_address, SContext* ctx) override;
@@ -253,7 +253,6 @@ public:
   void negx(UGeckoInstruction inst);
   void slwx(UGeckoInstruction inst);
   void srwx(UGeckoInstruction inst);
-  void dcbt(UGeckoInstruction inst);
   void dcbz(UGeckoInstruction inst);
 
   void subfic(UGeckoInstruction inst);
@@ -287,8 +286,8 @@ private:
   JitBlockCache blocks{*this};
   TrampolineCache trampolines{*this};
 
-  GPRRegCache gpr{*this};
-  FPURegCache fpr{*this};
+  GPRRegCache gpr{*this, *this};
+  FPURegCache fpr{*this, *this};
 
   JitCommon::ConstantPropagation m_constant_propagation;
 

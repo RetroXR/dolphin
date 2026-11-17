@@ -13,6 +13,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -89,10 +90,6 @@ fun PreviewTheme(
 private fun Context.toDolphinColorScheme(isDark: Boolean): ColorScheme {
     fun attr(@AttrRes attr: Int) = Color(MaterialColors.getColor(this, attr, 0))
 
-    val background = obtainStyledAttributes(intArrayOf(android.R.attr.colorBackground)).use {
-        Color(it.getColor(0, 0))
-    }
-
     return if (isDark) {
         darkColorScheme(
             primary = attr(AppCompatR.attr.colorPrimary),
@@ -111,7 +108,7 @@ private fun Context.toDolphinColorScheme(isDark: Boolean): ColorScheme {
             onError = attr(MaterialR.attr.colorOnError),
             errorContainer = attr(MaterialR.attr.colorErrorContainer),
             onErrorContainer = attr(MaterialR.attr.colorOnErrorContainer),
-            background = background,
+            background = attr(android.R.attr.colorBackground),
             onBackground = attr(MaterialR.attr.colorOnBackground),
             surface = attr(MaterialR.attr.colorSurface),
             onSurface = attr(MaterialR.attr.colorOnSurface),
@@ -140,7 +137,7 @@ private fun Context.toDolphinColorScheme(isDark: Boolean): ColorScheme {
             onError = attr(MaterialR.attr.colorOnError),
             errorContainer = attr(MaterialR.attr.colorErrorContainer),
             onErrorContainer = attr(MaterialR.attr.colorOnErrorContainer),
-            background = background,
+            background = attr(android.R.attr.colorBackground),
             onBackground = attr(MaterialR.attr.colorOnBackground),
             surface = attr(MaterialR.attr.colorSurface),
             onSurface = attr(MaterialR.attr.colorOnSurface),
@@ -160,6 +157,7 @@ fun DolphinScaffold(
     title: @Composable () -> Unit,
     navigationIcon: @Composable () -> Unit,
     modifier: Modifier = Modifier,
+    actions: @Composable RowScope.() -> Unit = {},
     floatingActionButton: @Composable () -> Unit = {},
     content: @Composable (PaddingValues) -> Unit,
 ) {
@@ -179,11 +177,13 @@ fun DolphinScaffold(
                 TopAppBar(
                     title = title,
                     navigationIcon = navigationIcon,
+                    actions = actions,
                 )
             } else {
                 MediumTopAppBar(
                     title = title,
                     navigationIcon = navigationIcon,
+                    actions = actions,
                     scrollBehavior = topAppBarScrollBehavior,
                 )
             }
@@ -257,7 +257,7 @@ fun OutlinedBox(
         if (onClick != null) {
             Box(
                 modifier = Modifier
-                    .fillMaxSize()
+                    .matchParentSize()
                     .clip(MaterialTheme.shapes.extraSmall)
                     .clickable(
                         interactionSource = interactionSource,

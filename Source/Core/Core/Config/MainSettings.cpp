@@ -152,6 +152,16 @@ const Info<ExpansionInterface::EXIDeviceType>& GetInfoForEXIDevice(ExpansionInte
   return *infos[slot];
 }
 
+const std::array<Info<std::string>, 2> MAIN_GC_MIC_MICROPHONE{
+    Info<std::string>{{System::Main, "Core", "GCMicAMicrophone"}, ""},
+    Info<std::string>{{System::Main, "Core", "GCMicBMicrophone"}, ""}};
+const std::array<Info<bool>, 2> MAIN_GC_MIC_MUTED{
+    Info<bool>{{System::Main, "Core", "GCMicAMuted"}, false},
+    Info<bool>{{System::Main, "Core", "GCMicBMuted"}, false}};
+const std::array<Info<s16>, 2> MAIN_GC_MIC_VOLUME_MODIFIER{
+    Info<s16>{{System::Main, "Core", "GCMicAVolumeModifier"}, 0},
+    Info<s16>{{System::Main, "Core", "GCMicBVolumeModifier"}, 0}};
+
 const Info<std::string> MAIN_BBA_MAC{{System::Main, "Core", "BBA_MAC"}, ""};
 const Info<std::string> MAIN_BBA_XLINK_IP{{System::Main, "Core", "BBA_XLINK_IP"}, "127.0.0.1"};
 const Info<bool> MAIN_BBA_XLINK_CHAT_OSD{{System::Main, "Core", "BBA_XLINK_CHAT_OSD"}, true};
@@ -216,7 +226,6 @@ const Info<bool> MAIN_CONNECT_WIIMOTES_FOR_CONTROLLER_INTERFACE{
     {System::Main, "Core", "WiimoteControllerInterface"}, false};
 const Info<bool> MAIN_MMU{{System::Main, "Core", "MMU"}, false};
 const Info<bool> MAIN_PAUSE_ON_PANIC{{System::Main, "Core", "PauseOnPanic"}, false};
-const Info<int> MAIN_BB_DUMP_PORT{{System::Main, "Core", "BBDumpPort"}, -1};
 const Info<bool> MAIN_SYNC_GPU{{System::Main, "Core", "SyncGPU"}, false};
 const Info<int> MAIN_SYNC_GPU_MAX_DISTANCE{{System::Main, "Core", "SyncGpuMaxDistance"}, 200000};
 const Info<int> MAIN_SYNC_GPU_MIN_DISTANCE{{System::Main, "Core", "SyncGpuMinDistance"}, -200000};
@@ -715,6 +724,23 @@ const std::array<Info<std::string>, WIIMOTE_SPEAKER_COUNT> MAIN_WIIMOTE_AUDIO_OU
     Info<std::string>{{System::Main, "Core", "Wiimote2AudioOutputDevice"}, ""},
     Info<std::string>{{System::Main, "Core", "Wiimote3AudioOutputDevice"}, ""},
     Info<std::string>{{System::Main, "Core", "Wiimote4AudioOutputDevice"}, ""}};
+
+// Main.GBAAudioRouting
+
+const Info<bool> MAIN_GBA_AUDIO_ROUTING_ENABLED{{System::Main, "Core", "GBAAudioRoutingEnabled"},
+                                                false};
+const std::array<Info<bool>, GBA_SPEAKER_COUNT> MAIN_GBA_AUDIO_OUTPUT_ENABLED = {
+    Info<bool>{{System::Main, "Core", "GBA1AudioOutputEnabled"}, false},
+    Info<bool>{{System::Main, "Core", "GBA2AudioOutputEnabled"}, false},
+    Info<bool>{{System::Main, "Core", "GBA3AudioOutputEnabled"}, false},
+    Info<bool>{{System::Main, "Core", "GBA4AudioOutputEnabled"}, false},
+};
+const std::array<Info<std::string>, GBA_SPEAKER_COUNT> MAIN_GBA_AUDIO_OUTPUT_DEVICE = {
+    Info<std::string>{{System::Main, "Core", "GBA1AudioOutputDevice"}, ""},
+    Info<std::string>{{System::Main, "Core", "GBA2AudioOutputDevice"}, ""},
+    Info<std::string>{{System::Main, "Core", "GBA3AudioOutputDevice"}, ""},
+    Info<std::string>{{System::Main, "Core", "GBA4AudioOutputDevice"}, ""},
+};
 
 // The reason we need this function is because some memory card code
 // expects to get a non-NTSC-K region even if we're emulating an NTSC-K Wii.

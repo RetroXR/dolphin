@@ -1,7 +1,7 @@
 // Copyright 2025 Dolphin Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-#include "Core/IOS/USB/Emulated/Microphone.h"
+#include "AudioCommon/Microphone.h"
 
 #include <algorithm>
 #include <cmath>
@@ -30,10 +30,12 @@
 
 #ifdef __LIBRETRO__
 #include <libretro.h>
+#include "Core/HW/VideoInterface.h"
+#include "Core/System.h"
 #include "DolphinLibretro/Common/Globals.h"
 #endif
 
-namespace IOS::HLE::USB
+namespace AudioCommon
 {
 #ifdef HAVE_CUBEB
 Microphone::Microphone(const MicrophoneState& sampler, std::string worker_name)
@@ -121,7 +123,17 @@ void Microphone::PollRetroArchMic()
   if (!m_sampler.IsSampleOn() || m_sampler.IsMuted() || IsMicrophoneMuted())
     return;
 
-  const int frames_per_call = static_cast<int>(m_current_sampling_rate / 60);
+  // One frame has to bring in a frame's worth of samples at the guest's rate
+  // (about 184 at the GameCube's 11025 Hz), or the ring starves and the game is
+  // handed its previous buffer again.
+  const double refresh =
+      Core::System::GetInstance().GetVideoInterface().GetTargetRefreshRate();
+  const double wanted =
+      m_current_sampling_rate / (refresh > 0.0 ? refresh : 60.0) + m_retro_mic_carry;
+  const int frames_per_call = static_cast<int>(wanted);
+  m_retro_mic_carry = wanted - frames_per_call;
+  if (frames_per_call <= 0)
+    return;
   std::vector<SampleType> buf(frames_per_call);
 
   const int frames = Libretro::Input::g_microphone_interface.read_mic(
@@ -152,7 +164,7 @@ void Microphone::StreamInit()
 {
   if (!m_worker.Execute([this] { m_cubeb_ctx = CubebUtils::GetContext(); }))
   {
-    ERROR_LOG_FMT(IOS_USB, "Failed to init microphone stream");
+    ERROR_LOG_FMT(AUDIO, "Failed to init microphone stream");
     return;
   }
 
@@ -201,7 +213,7 @@ void Microphone::StreamStart(u32 sampling_rate)
     u32 minimum_latency;
     if (cubeb_get_min_latency(m_cubeb_ctx.get(), &params, &minimum_latency) != CUBEB_OK)
     {
-      WARN_LOG_FMT(IOS_USB, "Error getting minimum latency");
+      WARN_LOG_FMT(AUDIO, "Error getting minimum latency");
       minimum_latency = 16;
     }
 
@@ -211,19 +223,20 @@ void Microphone::StreamStart(u32 sampling_rate)
                           std::max<u32>(16, minimum_latency), CubebDataCallback, StateCallback,
                           this) != CUBEB_OK)
     {
-      ERROR_LOG_FMT(IOS_USB, "Error initializing cubeb stream");
+      ERROR_LOG_FMT(AUDIO, "Error initializing cubeb stream");
       return;
     }
 
     if (cubeb_stream_start(m_cubeb_stream) != CUBEB_OK)
     {
-      ERROR_LOG_FMT(IOS_USB, "Error starting cubeb stream");
+      ERROR_LOG_FMT(AUDIO, "Error starting cubeb stream");
       return;
     }
 
     m_stream_buffer.resize(GetStreamSize());
+    m_stream_rpos = 0;
     m_stream_wpos = 0;
-    INFO_LOG_FMT(IOS_USB, "started cubeb stream");
+    INFO_LOG_FMT(AUDIO, "started cubeb stream");
   });
 }
 
@@ -234,7 +247,7 @@ void Microphone::StreamStop()
 
   m_worker.Execute([this] {
     if (cubeb_stream_stop(m_cubeb_stream) != CUBEB_OK)
-      ERROR_LOG_FMT(IOS_USB, "Error stopping cubeb stream");
+      ERROR_LOG_FMT(AUDIO, "Error stopping cubeb stream");
     cubeb_stream_destroy(m_cubeb_stream);
     m_cubeb_stream = nullptr;
   });
@@ -259,6 +272,11 @@ long Microphone::CubebDataCallback(cubeb_stream* stream, void* user_data, const 
 #endif
 
 #if defined(HAVE_CUBEB) || defined(__LIBRETRO__)
+void Microphone::OnOverflow()
+{
+  m_samples_avail = GetStreamSize();
+}
+
 long Microphone::DataCallback(const SampleType* input_buffer, long nframes)
 {
   std::lock_guard lock(m_ring_lock);
@@ -286,7 +304,7 @@ long Microphone::DataCallback(const SampleType* input_buffer, long nframes)
   m_samples_avail += nframes;
   if (m_samples_avail > stream_size)
   {
-    m_samples_avail = stream_size;
+    OnOverflow();
   }
 
   return nframes;
@@ -295,22 +313,23 @@ long Microphone::DataCallback(const SampleType* input_buffer, long nframes)
 
 u16 Microphone::ReadIntoBuffer(u8* ptr, u32 size)
 {
-  static constexpr u32 SINGLE_READ_SIZE = BUFF_SIZE_SAMPLES * sizeof(SampleType);
+  const u32 samples_per_read = GetBufferSizeSamples();
+  const u32 bytes_per_read = samples_per_read * sizeof(SampleType);
 
   std::lock_guard lock(m_ring_lock);
 
   const u32 stream_size = GetStreamSize();
-  u8* begin = ptr;
-  for (u8* end = begin + size; ptr < end; ptr += SINGLE_READ_SIZE, size -= SINGLE_READ_SIZE)
+  u8* const begin = ptr;
+  for (u8* const end = begin + size; ptr < end; ptr += bytes_per_read, size -= bytes_per_read)
   {
-    if (size < SINGLE_READ_SIZE || m_samples_avail < BUFF_SIZE_SAMPLES)
+    if (size < bytes_per_read || m_samples_avail < samples_per_read)
       break;
 
     SampleType* last_buffer = &m_stream_buffer[m_stream_rpos];
-    std::memcpy(ptr, last_buffer, SINGLE_READ_SIZE);
+    std::memcpy(ptr, last_buffer, bytes_per_read);
 
-    m_samples_avail -= BUFF_SIZE_SAMPLES;
-    m_stream_rpos += BUFF_SIZE_SAMPLES;
+    m_samples_avail -= samples_per_read;
+    m_stream_rpos += samples_per_read;
     m_stream_rpos %= stream_size;
   }
   return static_cast<u16>(ptr - begin);
@@ -348,7 +367,7 @@ void Microphone::UpdateLoudness(const SampleType sample)
   }
 }
 
-bool Microphone::HasData(u32 sample_count = BUFF_SIZE_SAMPLES) const
+bool Microphone::HasData(u32 sample_count) const
 {
   std::lock_guard lock(m_ring_lock);
   return m_samples_avail >= sample_count;
@@ -363,6 +382,11 @@ void Microphone::SetSamplingRate(u32 sampling_rate)
 {
   StreamStop();
   StreamStart(sampling_rate);
+}
+
+u32 Microphone::GetBufferSizeSamples() const
+{
+  return BUFF_SIZE_SAMPLES;
 }
 
 const Microphone::FloatType Microphone::Loudness::DB_MIN =
@@ -457,7 +481,7 @@ void Microphone::Loudness::LogStats()
   const auto crest_factor = GetCrestFactor();
   const auto crest_factor_db = GetDecibel(crest_factor);
 
-  INFO_LOG_FMT(IOS_USB,
+  INFO_LOG_FMT(AUDIO,
                "Microphone loudness stats (sample count: {}/{}):\n"
                " - min={} max={} amplitude={} ({} dB)\n"
                " - rms={} ({} dB) \n"
@@ -466,4 +490,4 @@ void Microphone::Loudness::LogStats()
                samples_count, SAMPLES_NEEDED, peak_min, peak_max, amplitude, amplitude_db, rms,
                rms_db, abs_mean, abs_mean_db, crest_factor, crest_factor_db);
 }
-}  // namespace IOS::HLE::USB
+}  // namespace AudioCommon

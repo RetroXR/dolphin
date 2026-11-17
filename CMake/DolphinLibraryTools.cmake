@@ -1,5 +1,6 @@
 include(CheckCXXSourceCompiles)
 include(CheckCXXSymbolExists)
+include(FetchContent)
 
 # like add_library(new ALIAS old) but avoids add_library cannot create ALIAS target "new" because target "old" is imported but not globally visible. on older cmake
 # This can be replaced with a direct alias call once our minimum is cmake 3.18
@@ -41,8 +42,21 @@ function(dolphin_optional_system_library out_use_system library)
   endif()
 endfunction()
 
-function(dolphin_add_bundled_library library use_system bundled_path)
-  if (${use_system} STREQUAL "AUTO")
+function(dolphin_find_directory_targets dir result)
+  get_directory_property(targets DIRECTORY ${dir} BUILDSYSTEM_TARGETS)
+
+  get_property(subdirs DIRECTORY ${dir} PROPERTY SUBDIRECTORIES)
+  foreach(subdir IN LISTS subdirs)
+    dolphin_find_directory_targets(${subdir} sub_targets)
+    list(APPEND targets ${sub_targets})
+  endforeach()
+
+  set(${result} "${targets}" PARENT_SCOPE)
+endfunction()
+
+function(dolphin_add_bundled_library library bundled_path)
+  set(use_system "${ARGV2}")
+  if (use_system STREQUAL "AUTO")
     message(STATUS "No system ${library} was found.  Using static ${library} from Externals.")
   else()
     message(STATUS "Using static ${library} from Externals")
@@ -51,6 +65,15 @@ function(dolphin_add_bundled_library library use_system bundled_path)
     message(FATAL_ERROR "No bundled ${library} was found.  Did you forget to checkout submodules?")
   endif()
   add_subdirectory(${bundled_path} EXCLUDE_FROM_ALL)
+  dolphin_find_directory_targets(${bundled_path} bundled_targets)
+  foreach(target IN LISTS bundled_targets)
+    get_target_property(type ${target} TYPE)
+    get_target_property(imported ${target} IMPORTED)
+    if(imported OR type STREQUAL "INTERFACE_LIBRARY" OR type STREQUAL "UTILITY")
+      continue()
+    endif()
+    dolphin_disable_warnings(${target})
+  endforeach()
 endfunction()
 
 function(dolphin_set_library_type library type)
@@ -88,7 +111,8 @@ function(dolphin_find_optional_system_library library bundled_path)
           break()
         endif()
       endwhile()
-      # Quietly check all the listed versions
+      # Quietly check all the listed versions, from newest to oldest.
+      list(SORT version_list COMPARE NATURAL ORDER DESCENDING)
       foreach(version IN LISTS version_list)
         find_package(${library} ${version} ${ARGN} QUIET)
         if(${library}_FOUND)
@@ -119,7 +143,7 @@ function(dolphin_find_optional_system_library library bundled_path)
     message(STATUS "Using system ${library}")
   else()
     dolphin_set_library_type(${library} "Bundled")
-    dolphin_add_bundled_library(${library} ${use_system} ${bundled_path})
+    dolphin_add_bundled_library(${library} ${bundled_path} ${use_system})
   endif()
 endfunction()
 
@@ -138,7 +162,7 @@ function(dolphin_find_optional_system_library_pkgconfig library search alias bun
     dolphin_alias_library(${alias} PkgConfig::${library})
   else()
     dolphin_set_library_type(${library} "Bundled")
-    dolphin_add_bundled_library(${library} ${use_system} ${bundled_path})
+    dolphin_add_bundled_library(${library} ${bundled_path} ${use_system})
   endif()
 endfunction()
 
@@ -167,5 +191,52 @@ function(dolphin_check_std_version LABEL VERSION_MACRO MIN_VERSION)
   ]] HAS_MINIMUM_${LABEL})
   if(NOT HAS_MINIMUM_${LABEL})
     message(FATAL_ERROR "Requires ${LABEL} ${MIN_VERSION} or higher")
+  endif()
+endfunction()
+
+function(dolphin_fetchcontent_declare NAME)
+  set(source_dir "${CMAKE_SOURCE_DIR}/.FetchContent/${NAME}")
+  FetchContent_Declare(${NAME} SOURCE_DIR "${source_dir}" ${ARGN})
+  
+  string(TOUPPER "${NAME}" upper_name)
+  # Forget what we auto-set on a previous configure so a changed commit is re-evaluated
+  if("${FETCHCONTENT_SOURCE_DIR_${upper_name}}" STREQUAL "" OR
+     FETCHCONTENT_SOURCE_DIR_${upper_name} STREQUAL "${source_dir}")
+    unset(FETCHCONTENT_SOURCE_DIR_${upper_name} CACHE)
+  endif()
+
+  set(git_tag "")
+  list(FIND ARGN GIT_TAG i_tag)
+  list(LENGTH ARGN argc)
+  math(EXPR i_value "${i_tag} + 1")
+  if(NOT i_tag EQUAL -1 AND i_value LESS argc)
+    list(GET ARGN ${i_value} git_tag)
+  else()
+    return()
+  endif()
+
+  find_package(Git QUIET)
+  if(NOT GIT_FOUND)
+    return()
+  endif()
+
+  execute_process(
+    COMMAND "${GIT_EXECUTABLE}" -C "${source_dir}" rev-parse --verify --quiet "${git_tag}^{commit}"
+    OUTPUT_VARIABLE wanted_sha
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    RESULT_VARIABLE wanted_result
+    ERROR_QUIET
+  )
+  execute_process(
+    COMMAND "${GIT_EXECUTABLE}" -C "${source_dir}" rev-parse --verify --quiet HEAD
+    OUTPUT_VARIABLE head_sha
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    RESULT_VARIABLE head_result
+    ERROR_QUIET
+  )
+
+  # If a local clone exists with the correct commit, use it instead of downloading.
+  if(wanted_result EQUAL 0 AND head_result EQUAL 0 AND head_sha STREQUAL wanted_sha)
+    set(FETCHCONTENT_SOURCE_DIR_${upper_name} "${source_dir}" CACHE PATH "")
   endif()
 endfunction()

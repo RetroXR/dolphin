@@ -32,7 +32,7 @@
 #include "Core/HW/ProcessorInterface.h"
 #include "Core/HW/VideoInterface.h"
 #include "Core/HW/WiimoteReal/WiimoteReal.h"
-#include "Core/IOS/USB/Emulated/Microphone.h"
+#include "AudioCommon/Microphone.h"
 #include "Core/PatchEngine.h"
 #include "Core/State.h"
 #include "Core/System.h"

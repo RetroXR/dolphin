@@ -102,6 +102,9 @@ extern const Info<ExpansionInterface::EXIDeviceType> MAIN_SLOT_B;
 extern const Info<ExpansionInterface::EXIDeviceType> MAIN_SERIAL_PORT_1;
 extern const Info<ExpansionInterface::EXIDeviceType> MAIN_SERIAL_PORT_2;
 const Info<ExpansionInterface::EXIDeviceType>& GetInfoForEXIDevice(ExpansionInterface::Slot slot);
+extern const std::array<Info<std::string>, 2> MAIN_GC_MIC_MICROPHONE;
+extern const std::array<Info<bool>, 2> MAIN_GC_MIC_MUTED;
+extern const std::array<Info<s16>, 2> MAIN_GC_MIC_VOLUME_MODIFIER;
 extern const Info<std::string> MAIN_BBA_MAC;
 extern const Info<std::string> MAIN_BBA_XLINK_IP;
 extern const Info<bool> MAIN_BBA_XLINK_CHAT_OSD;
@@ -122,7 +125,6 @@ extern const Info<bool> MAIN_WIIMOTE_ENABLE_SPEAKER;
 extern const Info<bool> MAIN_CONNECT_WIIMOTES_FOR_CONTROLLER_INTERFACE;
 extern const Info<bool> MAIN_MMU;
 extern const Info<bool> MAIN_PAUSE_ON_PANIC;
-extern const Info<int> MAIN_BB_DUMP_PORT;
 extern const Info<bool> MAIN_SYNC_GPU;
 extern const Info<int> MAIN_SYNC_GPU_MAX_DISTANCE;
 extern const Info<int> MAIN_SYNC_GPU_MIN_DISTANCE;
@@ -407,6 +409,14 @@ static constexpr std::size_t WIIMOTE_SPEAKER_COUNT = 4;
 extern const Info<bool> MAIN_WIIMOTE_AUDIO_ROUTING_ENABLED;
 extern const std::array<Info<bool>, WIIMOTE_SPEAKER_COUNT> MAIN_WIIMOTE_AUDIO_OUTPUT_ENABLED;
 extern const std::array<Info<std::string>, WIIMOTE_SPEAKER_COUNT> MAIN_WIIMOTE_AUDIO_OUTPUT_DEVICE;
+
+// Main.GBAAudioRouting
+
+static constexpr std::size_t GBA_SPEAKER_COUNT = 4;
+
+extern const Info<bool> MAIN_GBA_AUDIO_ROUTING_ENABLED;
+extern const std::array<Info<bool>, GBA_SPEAKER_COUNT> MAIN_GBA_AUDIO_OUTPUT_ENABLED;
+extern const std::array<Info<std::string>, GBA_SPEAKER_COUNT> MAIN_GBA_AUDIO_OUTPUT_DEVICE;
 
 // GameCube path utility functions
 
