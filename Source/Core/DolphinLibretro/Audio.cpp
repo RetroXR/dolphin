@@ -95,8 +95,7 @@ static void ProbeControllerAudio()
   static retro_controller_audio_interface stored{};
   retro_controller_audio_interface probe{};
   g_controller_audio = nullptr;
-  if ((Libretro::environ_cb(RETRO_ENVIRONMENT_GET_CONTROLLER_AUDIO_INTERFACE, &probe) ||
-       Libretro::environ_cb(RETRO_ENVIRONMENT_GET_CONTROLLER_AUDIO_INTERFACE_FINAL, &probe)) &&
+  if (Libretro::environ_cb(RETRO_ENVIRONMENT_GET_CONTROLLER_AUDIO_INTERFACE, &probe) &&
       probe.interface_version >= 1 && probe.push)
   {
     stored = probe;
