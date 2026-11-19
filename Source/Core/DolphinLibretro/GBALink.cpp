@@ -66,7 +66,7 @@ const retro_link_interface* ProbeLinkInterface()
   // politely: six function pointers land on eight bytes of stack and the process
   // dies somewhere else entirely, which is exactly how this was found.
   //
-  // The link interface (libretro/RetroArch#19454), at its EXPERIMENTAL number.
+  // Link interface (libretro/RetroArch#19454).
   static retro_link_interface stored{};
   retro_link_interface probe{};
   if (environ_cb(RETRO_ENVIRONMENT_GET_LINK_INTERFACE, &probe))
