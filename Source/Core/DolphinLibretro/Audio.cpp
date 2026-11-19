@@ -191,8 +191,8 @@ void Stream::MixBlock(unsigned int num_samples)
     for (unsigned port = 0; port < Config::WIIMOTE_SPEAKER_COUNT; ++port)
     {
       m_mixer->MixWiimoteSpeaker(port, m_speaker_buffer, num_samples);
-      if (g_controller_audio->push(g_controller_audio->frontend_data, port, 0, m_speaker_buffer,
-                                   num_samples))
+      if (g_controller_audio->push(g_controller_audio->frontend_data, RETRO_CONTROLLER_AUDIO_CONTROLLER,
+                                   port, 0, m_speaker_buffer, num_samples))
         continue;
       for (unsigned i = 0; i < num_samples * 2; ++i)
         m_buffer[i] = static_cast<s16>(std::clamp(m_buffer[i] + m_speaker_buffer[i], -32768, 32767));
